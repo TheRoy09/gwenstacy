@@ -1,1 +1,4 @@
-pip freeze > requirements.txt
+Flask
+SQLAlchemy
+psycopg2-binary  # if using PostgreSQL
+email-validator
