@@ -1,6 +1,6 @@
 from flask import render_template, url_for, flash, redirect, request
 from app import app, db, bcrypt
-from app.forms import RegistrationForm, LoginForm
+from app.forms import RegistrationForm, LoginForm, EmailLoginForm
 from app.models import User
 from flask_login import login_user, current_user, logout_user, login_required
 import imaplib
@@ -45,33 +45,34 @@ def logout():
 def home():
     return render_template('home.html')
 
-@app.route("/get-emails", methods=['POST'])
+@app.route("/get-emails", methods=['GET', 'POST'])
 @login_required
 def get_emails():
-    # Dummy credentials for example; replace with secure handling
-    email_user = 'your_email@gmail.com'
-    email_pass = 'your_password'
+    form = EmailLoginForm()
+    if form.validate_on_submit():
+        email_user = form.email.data
+        email_pass = form.password.data
+        try:
+            mail = imaplib.IMAP4_SSL('imap.gmail.com')
+            mail.login(email_user, email_pass)
+            mail.select('inbox')
 
-    try:
-        mail = imaplib.IMAP4_SSL('imap.gmail.com')
-        mail.login(email_user, email_pass)
-        mail.select('inbox')
-
-        status, messages = mail.search(None, 'ALL')
-        email_ids = messages[0].split()
-        
-        emails = []
-        for email_id in email_ids[:10]:  # Fetch the latest 10 emails
-            status, msg_data = mail.fetch(email_id, '(RFC822)')
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-                    subject, encoding = decode_header(msg['Subject'])[0]
-                    if isinstance(subject, bytes):
-                        subject = subject.decode(encoding if encoding else 'utf-8')
-                    from_ = msg.get('From')
-                    emails.append({'subject': subject, 'from': from_})
-        return render_template('emails.html', emails=emails)
-    except Exception as e:
-        print(str(e))
-        return "Error fetching emails", 500
+            status, messages = mail.search(None, 'ALL')
+            email_ids = messages[0].split()
+            
+            emails = []
+            for email_id in email_ids[:10]:  # Fetch the latest 10 emails
+                status, msg_data = mail.fetch(email_id, '(RFC822)')
+                for response_part in msg_data:
+                    if isinstance(response_part, tuple):
+                        msg = email.message_from_bytes(response_part[1])
+                        subject, encoding = decode_header(msg['Subject'])[0]
+                        if isinstance(subject, bytes):
+                            subject = subject.decode(encoding if encoding else 'utf-8')
+                        from_ = msg.get('From')
+                        emails.append({'subject': subject, 'from': from_})
+            return render_template('emails.html', emails=emails)
+        except Exception as e:
+            print(str(e))
+            flash('Error fetching emails', 'danger')
+    return render_template('get_emails.html', title='Get Emails', form=form)
